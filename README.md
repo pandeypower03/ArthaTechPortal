@@ -1,1 +1,1 @@
-# arthaTechPortal
+# ArthatechPortal
