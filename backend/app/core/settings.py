@@ -28,15 +28,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
-    # our modules
     "accounts",
-    "morning_brief",
-    "people",
-    "goals",
-    "pulse",
-    "inbox",
-    "decisions",
-    "meetings",
 ]
 
 MIDDLEWARE = [
