@@ -14,6 +14,14 @@ MESSAGES = {
     "USER_ACTIVATED": "User activated.",
     "USER_DEACTIVATED": "User deactivated.",
     "PASSWORD_RESET_OK": "Password changed. The user must log in again.",
+    "FILE_BAD": "Please attach an .xlsx file in the field named 'file'.",
+    "UPLOAD_HAS_ERRORS": "The file has errors. Nothing was saved.",
+    "UPLOAD_SAVED": "The file was uploaded and saved.",
+    "HOUSE_CREATED": "The production house was saved.",
+    "HOUSE_INVALID": "Some details are wrong. Nothing was saved.",
+    "ITEM_REMOVED": "Removed.",
+    "REMOVE_BLOCKED": "This cannot be removed.",
+    "MEMBER_SWITCHED_OFF": "The person was switched off. Their history is kept.",
 }
 
 def get_message(code):

@@ -47,7 +47,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(default=timezone.now)
-
+    organisation = models.ForeignKey(
+        "organisations.Organisation",
+        null=True, blank=True, on_delete=models.PROTECT, related_name="users",
+    )
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
     objects = UserManager()

@@ -8,4 +8,6 @@ def health(request):
 urlpatterns = [
     path("api/health/", health),
     path("api/accounts/", include("accounts.urls")),
+    path("api/organisations/", include("organisations.urls")),
+
 ]
