@@ -84,3 +84,16 @@ class TeamMember(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AuditLog(models.Model):
+    """The diary. Lines are only added, never edited or deleted."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT)
+    action = models.CharField(max_length=50)                    # "house.created", "login.failed"
+    target_type = models.CharField(max_length=30, blank=True)   # "organisation", "team"...
+    target_id = models.BigIntegerField(null=True, blank=True)
+    details = models.JSONField(default=dict)                    # before and after, or the email tried
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

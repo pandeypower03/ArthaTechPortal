@@ -19,6 +19,7 @@ MESSAGES = {
     "UPLOAD_SAVED": "The file was uploaded and saved.",
     "HOUSE_CREATED": "The production house was saved.",
     "HOUSE_INVALID": "Some details are wrong. Nothing was saved.",
+    "HOUSE_UPDATED": "The production house was updated.",
     "ITEM_REMOVED": "Removed.",
     "REMOVE_BLOCKED": "This cannot be removed.",
     "MEMBER_SWITCHED_OFF": "The person was switched off. Their history is kept.",
