@@ -28,7 +28,7 @@ class HouseListView(APIView):
 
     def get(self, request):
         houses = (Organisation.objects.select_related("plan")
-                  .prefetch_related("projects__teams")
+                  .prefetch_related("projects__teams__members")
                   .annotate(user_count=Count("users", distinct=True))
                   .order_by("name"))
         return Response(HouseSerializer(houses, many=True).data)

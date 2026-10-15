@@ -37,40 +37,7 @@ def get_normal_user_or_404(pk):
 
 # ---------- Login, logout, me (both superuser and normal user) ----------
 
-# class LoginView(APIView):
-#     permission_classes = [AllowAny]
-#     authentication_classes = []
 
-#     def post(self, request):
-#         s = LoginSerializer(data=request.data)
-#         s.is_valid(raise_exception=True)
-#         identifier = s.validated_data["identifier"].strip().lower()
-#         password = s.validated_data["password"]
-
-#         user = User.objects.filter(Q(email=identifier) | Q(username=identifier)).first()
-
-#         if user and user.locked_until and user.locked_until > timezone.now():
-#             raise AppError("ACCOUNT_LOCKED", 429)
-
-#         if not user or not user.is_active or not user.check_password(password):
-#             if user:
-#                 user.failed_login_attempts += 1
-#                 if user.failed_login_attempts >= settings.LOGIN_MAX_ATTEMPTS:
-#                     user.locked_until = timezone.now() + timedelta(minutes=settings.LOGIN_LOCK_MINUTES)
-#                     user.failed_login_attempts = 0
-#                 user.save(update_fields=["failed_login_attempts", "locked_until"])
-#             raise AppError("INVALID_CREDENTIALS", 401)
-
-#         user.failed_login_attempts = 0
-#         user.locked_until = None
-#         user.save(update_fields=["failed_login_attempts", "locked_until"])
-
-#         refresh = RefreshToken.for_user(user)
-#         return Response({
-#             "access": str(refresh.access_token),
-#             "refresh": str(refresh),
-#             "user": UserSerializer(user).data,   # has is_superuser, so React knows which screen to show
-#         })
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
