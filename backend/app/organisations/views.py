@@ -1,6 +1,6 @@
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, ProtectedError, Q
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -138,14 +138,6 @@ class RemoveView(APIView):
             raise AppError("NOT_FOUND", 404)
         name = str(item)   # keep the name now, the row may be gone in a moment
 
-        if kind == "member":
-            # never delete a person: switch them off
-            with transaction.atomic():
-                item.is_active = False
-                item.save(update_fields=["is_active"])
-                log(request, "member.switched_off", kind, item_id, {"name": name})
-                return Response({"code": "MEMBER_SWITCHED_OFF", "message": get_message("MEMBER_SWITCHED_OFF")})
-            
         if kind == "project" and (item.actual_paise or item.committed_paise):
             return self.blocked("This project has spending, so it cannot be removed.")
 
@@ -156,9 +148,65 @@ class RemoveView(APIView):
         except ProtectedError:
             return self.blocked("It has something inside it (or is in use). Remove that first.")
         return self.removed()
-
     def removed(self):
         return Response({"code": "ITEM_REMOVED", "message": get_message("ITEM_REMOVED")})
+
+    def blocked(self, details):
+        return Response({"code": "REMOVE_BLOCKED", "message": get_message("REMOVE_BLOCKED"),
+                         "details": details}, status=422)
+
+class RemoveAllView(APIView):
+    """DELETE /api/organisations/remove-all/<kind>/<parent_id>/
+    kind = members (all people of a team), teams (all teams of a project),
+           projects (all projects of a house).
+    Everything inside is deleted, all or nothing. The parent itself stays."""
+    permission_classes = [IsSuperUser]
+
+    def delete(self, request, kind, parent_id):
+        if kind == "members":
+            parent_kind, parent = "team", Team.objects.filter(id=parent_id).first()
+            members = TeamMember.objects.filter(team=parent)
+            teams = Team.objects.none()
+            projects = Project.objects.none()
+            project_ids = []
+        elif kind == "teams":
+            parent_kind, parent = "project", Project.objects.filter(id=parent_id).first()
+            teams = Team.objects.filter(project=parent)
+            members = TeamMember.objects.filter(team__in=teams)
+            projects = Project.objects.none()
+            project_ids = [parent_id]
+        elif kind == "projects":
+            parent_kind, parent = "organisation", Organisation.objects.filter(id=parent_id).first()
+            projects = Project.objects.filter(organisation=parent)
+            teams = Team.objects.filter(project__in=projects)
+            members = TeamMember.objects.filter(team__in=teams)
+            project_ids = list(projects.values_list("id", flat=True))
+        else:
+            return self.blocked("type must be members, teams or projects")
+
+        if parent is None:
+            raise AppError("NOT_FOUND", 404)
+
+        # money is never wiped: any spending stops the whole delete
+        if Project.objects.filter(id__in=project_ids).filter(
+                Q(actual_paise__gt=0) | Q(committed_paise__gt=0)).exists():
+            return self.blocked("A project here has spending, so it cannot be removed.")
+
+        counts = {"members": members.count(), "teams": teams.count(), "projects": projects.count()}
+        if sum(counts.values()) == 0:
+            return self.blocked("There is nothing to remove.")
+
+        try:
+            with transaction.atomic():
+                members.delete()    # people first, then teams, then projects
+                teams.delete()
+                projects.delete()
+                log(request, f"{kind}.removed_all", parent_kind, parent_id, {"deleted": counts})
+        except ProtectedError:
+            return self.blocked("Something here is in use, so it cannot be removed.")
+
+        return Response({"code": "ITEMS_REMOVED", "message": get_message("ITEMS_REMOVED"),
+                         "deleted": counts})
 
     def blocked(self, details):
         return Response({"code": "REMOVE_BLOCKED", "message": get_message("REMOVE_BLOCKED"),

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import HouseListView, UploadView, CreateHouseView, RemoveView, AuditLogListView, UpdateHouseView, AddToHouseView
+from .views import HouseListView, UploadView, CreateHouseView, RemoveView, AuditLogListView, UpdateHouseView, AddToHouseView, RemoveAllView
 
 urlpatterns = [
     path("", HouseListView.as_view()),
@@ -7,6 +7,7 @@ urlpatterns = [
     path("createhouse/", CreateHouseView.as_view()),
     path("update/<int:house_id>/", UpdateHouseView.as_view()),
     path("remove/<str:kind>/<int:item_id>/", RemoveView.as_view()),
+    path("remove-all/<str:kind>/<int:parent_id>/", RemoveAllView.as_view()),
     path("add/<int:house_id>/", AddToHouseView.as_view()),
     path("audit-log/", AuditLogListView.as_view()),
 ]

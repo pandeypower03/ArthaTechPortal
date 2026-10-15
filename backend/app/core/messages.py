@@ -21,6 +21,7 @@ MESSAGES = {
     "HOUSE_INVALID": "Some details are wrong. Nothing was saved.",
     "HOUSE_UPDATED": "The production house was updated.",
     "ITEM_REMOVED": "Removed.",
+    "ITEMS_REMOVED": "Everything inside was removed.",
     "REMOVE_BLOCKED": "This cannot be removed.",
     "MEMBER_SWITCHED_OFF": "The person was switched off. Their history is kept.",
 }
