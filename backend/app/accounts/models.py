@@ -6,6 +6,21 @@ from django.utils import timezone
 USERNAME_REGEX = r"^[a-zA-Z0-9_.]{3,30}$"
 
 
+class Role(models.Model):
+    SUPER_ADMIN = "super_admin"
+    ADMIN = "admin"
+    NORMAL_USER = "normal_user"
+    CHOICES = [
+        (SUPER_ADMIN, "Super admin"),
+        (ADMIN, "Admin"),
+        (NORMAL_USER, "Normal user"),
+    ]
+    name = models.CharField(max_length=20, unique=True, choices=CHOICES)
+
+    def __str__(self):
+        return self.name
+
+
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
@@ -32,7 +47,10 @@ class UserManager(BaseUserManager):
         if self.filter(is_superuser=True).exists():
             raise ValueError("A superuser already exists")
         extra.pop("is_superuser", None)
-        return self._create(email, username, password, True, **extra)
+        user = self._create(email, username, password, True, **extra)
+        role, _ = Role.objects.get_or_create(name=Role.SUPER_ADMIN)
+        user.roles.add(role)
+        return user
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -51,6 +69,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         "organisations.Organisation",
         null=True, blank=True, on_delete=models.PROTECT, related_name="users",
     )
+    roles = models.ManyToManyField(Role, related_name="users", blank=True)
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
     objects = UserManager()
@@ -64,6 +84,15 @@ class User(AbstractBaseUser, PermissionsMixin):
                 name="only_one_superuser",
             )
         ]
+
+    def role_names(self):
+        return set(self.roles.values_list("name", flat=True))
+
+    def has_role(self, name):
+        return self.roles.filter(name=name).exists()
+
+    def has_any_role(self, *names):
+        return self.roles.filter(name__in=names).exists()
 
     def __str__(self):
         return self.email

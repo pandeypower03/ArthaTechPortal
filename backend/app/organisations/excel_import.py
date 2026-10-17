@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from openpyxl import load_workbook
 
-from .models import Organisation, Plan, Project, Team, TeamMember
+from .models import Organisation,Project, Team, TeamMember
 
 User = get_user_model()
 FEATURES = ["whatsapp_alerts", "bill_ocr", "tally_export", "multi_project_dashboard"]
@@ -40,16 +40,11 @@ def import_excel(file):
                 raise ValueError(f"Row {number}: {error}")
     return counts
 
-
 def save_row(row, counts):
-    plan = Plan.objects.filter(name__iexact=text(row, "plan_name")).first()
-    if not text(row, "organisation_name") or not plan:
-        raise ValueError("organisation_name is empty or plan_name does not exist")
+    if not text(row, "organisation_name"):
+        raise ValueError("organisation_name is empty")
 
-    org, new = Organisation.objects.get_or_create(
-        name=text(row, "organisation_name"),
-        defaults={"plan": plan, **{f: text(row, f).lower() == "yes" for f in FEATURES}},
-    )
+    org, new = Organisation.objects.get_or_create(name=text(row, "organisation_name"))
     counts["houses"] += new
 
     if not text(row, "project_name"):

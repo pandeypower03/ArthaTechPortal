@@ -2,24 +2,10 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
-
-class Plan(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    price_paise = models.BigIntegerField()          # money is always whole paise
-
-    def __str__(self):
-        return self.name
-
-
 class Organisation(models.Model):                    # a production house
     name = models.CharField(max_length=150, unique=True)
-    plan = models.ForeignKey(Plan, on_delete=models.PROTECT)
     is_suspended = models.BooleanField(default=False)
     suspended_reason = models.CharField(max_length=300, blank=True)
-    whatsapp_alerts = models.BooleanField(default=False)
-    bill_ocr = models.BooleanField(default=False)
-    tally_export = models.BooleanField(default=False)
-    multi_project_dashboard = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

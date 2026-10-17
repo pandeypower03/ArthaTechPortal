@@ -1,41 +1,33 @@
-
 from django.db import IntegrityError, transaction
 from django.db.models import Count, ProtectedError, Q
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.audit import log
 from core.exceptions import AppError
 from core.messages import get_message
-from core.permissions import IsSuperUser
+from core.permissions import IsSuperUser , IsAdminOrAbove
 from .excel_import import import_excel
-from .models import AuditLog, Organisation, Plan, Project, Team, TeamMember
+from .models import AuditLog, Organisation, Project, Team, TeamMember
 from .serializers import HouseSerializer
-
-FEATURES = ["whatsapp_alerts", "bill_ocr", "tally_export", "multi_project_dashboard"]
-
-def log(request, action, target_type="", target_id=None, details=None, user=None):
-    """Add one line to the audit log. Pass user= only when the request is not logged in yet (login)."""
-    if user is None and request.user.is_authenticated:
-        user = request.user
-    AuditLog.objects.create(user=user, action=action, target_type=target_type,
-                            target_id=target_id, details=details or {})
 
 
 class HouseListView(APIView):
     """GET: all production houses with their projects (the 'Production houses' page)."""
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsAdminOrAbove]
 
     def get(self, request):
-        houses = (Organisation.objects.select_related("plan")
+        houses = (Organisation.objects
                   .prefetch_related("projects__teams__members")
                   .annotate(user_count=Count("users", distinct=True))
                   .order_by("name"))
         return Response(HouseSerializer(houses, many=True).data)
 
+
 class UploadView(APIView):
     """POST: form field 'file' = the .xlsx. Saves everything, or nothing if any row is wrong."""
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsAdminOrAbove]
     parser_classes = [MultiPartParser]
 
     def post(self, request):
@@ -50,9 +42,10 @@ class UploadView(APIView):
         log(request, "house.excel_uploaded", details={"file": file.name, "created": counts})
         return Response({"code": "UPLOAD_SAVED", "message": get_message("UPLOAD_SAVED"), "created": counts}, status=201)
 
+
 class CreateHouseView(APIView):
     """POST: one JSON with the house, its projects, teams and people. Saves all or nothing."""
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsAdminOrAbove]
 
     def post(self, request):
         data = request.data   # the JSON from the frontend, as a Python dictionary
@@ -60,25 +53,10 @@ class CreateHouseView(APIView):
             # "atomic" = if any line below fails, everything saved so far is undone
             with transaction.atomic():
 
-                # 1. Plan: find it by name. If it is not there, create it.
-                plan = Plan.objects.filter(name=data["plan_name"]).first()
-                if plan is None:
-                    plan = Plan.objects.create(
-                        name=data["plan_name"],
-                        price_paise=data.get("plan_price_paise", 0),
-                    )
+                # 1. Production house
+                org = Organisation.objects.create(name=data["name"])
 
-                # 2. Production house
-                org = Organisation.objects.create(
-                    name=data["name"],
-                    plan=plan,
-                    whatsapp_alerts=bool(data.get("whatsapp_alerts")),
-                    bill_ocr=bool(data.get("bill_ocr")),
-                    tally_export=bool(data.get("tally_export")),
-                    multi_project_dashboard=bool(data.get("multi_project_dashboard")),
-                )
-
-                # 3. Projects of this house
+                # 2. Projects of this house
                 for p in data.get("projects", []):
                     if p["project_type"] not in Project.Type.values:
                         raise ValueError("project_type must be movie, ott_series, ad or other")
@@ -88,7 +66,7 @@ class CreateHouseView(APIView):
                         project_type=p["project_type"],
                     )
 
-                    # 4. Teams of this project
+                    # 3. Teams of this project
                     for t in p.get("teams", []):
                         team = Team.objects.create(
                             project=project,
@@ -97,7 +75,7 @@ class CreateHouseView(APIView):
                             advance_paise=t.get("advance_paise", 0),
                         )
 
-                        # 5. People of this team
+                        # 4. People of this team
                         for m in t.get("members", []):
                             TeamMember.objects.create(
                                 team=team,
@@ -107,7 +85,7 @@ class CreateHouseView(APIView):
                                 is_team_head=bool(m.get("is_team_head")),
                             )
 
-                # 6. Audit log line, inside the same transaction
+                # 5. Audit log line, inside the same transaction
                 log(request, "house.created", "organisation", org.id, {"name": org.name})
 
         except KeyError as error:
@@ -123,15 +101,16 @@ class CreateHouseView(APIView):
         return Response({"code": "HOUSE_INVALID", "message": get_message("HOUSE_INVALID"),
                          "details": details}, status=422)
 
+
 class RemoveView(APIView):
-    """DELETE /api/organisations/remove/<type>/<id>/  where type = plan, organisation, project, team or member"""
-    permission_classes = [IsSuperUser]
+    """DELETE /api/organisations/remove/<type>/<id>/  where type = organisation, project, team or member"""
+    permission_classes = [IsAdminOrAbove]
 
     def delete(self, request, kind, item_id):
-        tables = {"plan": Plan, "organisation": Organisation, "project": Project,
+        tables = {"organisation": Organisation, "project": Project,
                   "team": Team, "member": TeamMember}
         if kind not in tables:
-            return self.blocked("type must be plan, organisation, project, team or member")
+            return self.blocked("type must be organisation, project, team or member")
 
         item = tables[kind].objects.filter(id=item_id).first()
         if item is None:
@@ -148,6 +127,7 @@ class RemoveView(APIView):
         except ProtectedError:
             return self.blocked("It has something inside it (or is in use). Remove that first.")
         return self.removed()
+
     def removed(self):
         return Response({"code": "ITEM_REMOVED", "message": get_message("ITEM_REMOVED")})
 
@@ -155,12 +135,13 @@ class RemoveView(APIView):
         return Response({"code": "REMOVE_BLOCKED", "message": get_message("REMOVE_BLOCKED"),
                          "details": details}, status=422)
 
+
 class RemoveAllView(APIView):
     """DELETE /api/organisations/remove-all/<kind>/<parent_id>/
     kind = members (all people of a team), teams (all teams of a project),
            projects (all projects of a house).
     Everything inside is deleted, all or nothing. The parent itself stays."""
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsAdminOrAbove]
 
     def delete(self, request, kind, parent_id):
         if kind == "members":
@@ -212,10 +193,11 @@ class RemoveAllView(APIView):
         return Response({"code": "REMOVE_BLOCKED", "message": get_message("REMOVE_BLOCKED"),
                          "details": details}, status=422)
 
+
 class UpdateHouseView(APIView):
     """PATCH /api/organisations/update/<house_id>/
-    Send only what changes: plan_name, the 4 features, is_suspended, suspended_reason."""
-    permission_classes = [IsSuperUser]
+    Send only what changes: is_suspended, suspended_reason."""
+    permission_classes = [IsAdminOrAbove]
 
     def patch(self, request, house_id):
         org = Organisation.objects.filter(id=house_id).first()
@@ -223,27 +205,17 @@ class UpdateHouseView(APIView):
             raise AppError("NOT_FOUND", 404)
 
         data = request.data
-        changes = {}   # what changed: {"plan": {"from": "Starter", "to": "Studio"}}
+        changes = {}   # what changed: {"is_suspended": {"from": False, "to": True}}
         try:
             with transaction.atomic():
 
-                # Plan
-                if "plan_name" in data:
-                    plan = Plan.objects.filter(name=data["plan_name"]).first()
-                    if plan is None:
-                        raise ValueError("This plan does not exist.")
-                    if plan.id != org.plan_id:
-                        changes["plan"] = {"from": org.plan.name, "to": plan.name}
-                        org.plan = plan
-
-                # The 4 features and the suspend switch (true or false only)
-                for field in FEATURES + ["is_suspended"]:
-                    if field in data:
-                        if not isinstance(data[field], bool):
-                            raise ValueError(f"{field} must be true or false.")
-                        if data[field] != getattr(org, field):
-                            changes[field] = {"from": getattr(org, field), "to": data[field]}
-                            setattr(org, field, data[field])
+                # The suspend switch (true or false only)
+                if "is_suspended" in data:
+                    if not isinstance(data["is_suspended"], bool):
+                        raise ValueError("is_suspended must be true or false.")
+                    if data["is_suspended"] != org.is_suspended:
+                        changes["is_suspended"] = {"from": org.is_suspended, "to": data["is_suspended"]}
+                        org.is_suspended = data["is_suspended"]
 
                 # Suspend needs a reason. Un-suspending clears it.
                 if "suspended_reason" in data:
@@ -264,11 +236,12 @@ class UpdateHouseView(APIView):
 
         return Response({"code": "HOUSE_UPDATED", "message": get_message("HOUSE_UPDATED"), "changes": changes})
 
+
 class AddToHouseView(APIView):
     """POST /api/organisations/add/<house_id>/
     Add projects, teams and people to a house that already exists. Saves all or nothing.
     A project or team with the same name is reused, so you can add a team to an old project."""
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsAdminOrAbove]
 
     def post(self, request, house_id):
         org = Organisation.objects.filter(id=house_id).first()
@@ -334,6 +307,7 @@ class AddToHouseView(APIView):
     def bad(self, details):
         return Response({"code": "HOUSE_INVALID", "message": get_message("HOUSE_INVALID"),
                          "details": details}, status=422)
+
 
 class AuditLogListView(APIView):
     """GET /api/organisations/audit-log/?action=house.created&user_id=1  (last 100 lines, superuser only)"""

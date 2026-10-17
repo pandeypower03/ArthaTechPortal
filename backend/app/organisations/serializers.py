@@ -35,13 +35,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         return project.budget_paise - (project.actual_paise + project.committed_paise)
 
 class HouseSerializer(serializers.ModelSerializer):
-    plan = serializers.CharField(source="plan.name")
-    plan_price_paise = serializers.IntegerField(source="plan.price_paise")
     user_count = serializers.IntegerField()
     projects = ProjectSerializer(many=True)
 
     class Meta:
         model = Organisation
-        fields = ["id", "name", "plan", "plan_price_paise", "is_suspended", "suspended_reason",
-                  "whatsapp_alerts", "bill_ocr", "tally_export", "multi_project_dashboard",
+        fields = ["id", "name", "is_suspended", "suspended_reason",
                   "user_count", "projects"]
