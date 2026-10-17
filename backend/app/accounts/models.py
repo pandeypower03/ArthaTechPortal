@@ -70,6 +70,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         null=True, blank=True, on_delete=models.PROTECT, related_name="users",
     )
     roles = models.ManyToManyField(Role, related_name="users", blank=True)
+    # models.py, on User
+    last_active_role = models.CharField(max_length=50, blank=True, default="")
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]

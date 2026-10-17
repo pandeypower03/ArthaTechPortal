@@ -60,15 +60,30 @@ def can_create_role(actor, role):
 #         .exclude(pk=actor.pk)
 #         .exclude(is_superuser=True)
 #     )
+# def manageable_users(actor):
+#     """Users this actor may list / activate / deactivate / reset.
+#     The actor and the bootstrap superuser are always excluded."""
+#     allowed = allowed_roles(actor.last)
+
+
+#     # every role name the actor is NOT allowed to manage
+#     forbidden = set(Role.objects.values_list("name", flat=True)) - allowed
+#     return (
+#         User.objects.filter(roles__name__in=allowed)
+#         .exclude(roles__name__in=forbidden)   # hides anyone who also holds a higher role
+#         .exclude(pk=actor.pk)
+#         # .exclude(is_superuser=True)
+#         .distinct()
+#     )
 def manageable_users(actor):
-    """Users this actor may list / activate / deactivate / reset.
-    The actor and the bootstrap superuser are always excluded."""
-    allowed = allowed_roles(actor)
-    # every role name the actor is NOT allowed to manage
-    forbidden = set(Role.objects.values_list("name", flat=True)) - allowed
+    role = actor.last_active_role                    # the role chosen in the POST, nothing else
+
+    allowed = CREATABLE_ROLES.get(role, set())       # what this one role may manage
+    forbidden = {Role.SUPER_ADMIN, Role.ADMIN, Role.NORMAL_USER} - allowed
+
     return (
         User.objects.filter(roles__name__in=allowed)
-        .exclude(roles__name__in=forbidden)   # hides anyone who also holds a higher role
+        .exclude(roles__name__in=forbidden)
         .exclude(pk=actor.pk)
         # .exclude(is_superuser=True)
         .distinct()
@@ -383,3 +398,14 @@ class ResetPasswordView(APIView):
             details={"target_user_id": user.pk},
         )
         return ok("PASSWORD_RESET_OK")
+
+class ActiveRoleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        role = request.data.get("active_role")
+        if role not in request.user.role_names():
+            raise AppError("PERMISSION_DENIED", 403)
+        request.user.last_active_role = role
+        request.user.save(update_fields=["last_active_role"])
+        return ok("ROLE_SELECTED", active_role=role)

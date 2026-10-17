@@ -2,14 +2,17 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     LoginView, LogoutView, MeView,
-    UsersView, SetActiveView, ResetPasswordView,
+    UsersView, SetActiveView, ResetPasswordView,ActiveRoleView
 )
+
 
 urlpatterns = [
     path("login/", LoginView.as_view()),
     path("logout/", LogoutView.as_view()),
     path("token/refresh/", TokenRefreshView.as_view()),
     path("me/", MeView.as_view()),
+    # accounts/urls.py
+    path("active-role/", ActiveRoleView.as_view()),
 
     # superuser only
     path("users/", UsersView.as_view()),

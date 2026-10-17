@@ -24,6 +24,7 @@ MESSAGES = {
     "ITEMS_REMOVED": "Everything inside was removed.",
     "REMOVE_BLOCKED": "This cannot be removed.",
     "MEMBER_SWITCHED_OFF": "The person was switched off. Their history is kept.",
+    "ROLE_REQUIRED":"The member has multiple roles , you need to choose one to continue",
 }
 
 def get_message(code):
